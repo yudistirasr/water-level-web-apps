@@ -1,14 +1,22 @@
 #include <WiFi.h>
-#include <FirebaseESP32.h>
+#include <Firebase_ESP_Client.h>
+#include "addons/TokenHelper.h"
+#include "addons/RTDBHelper.h"
 
 // Konfigurasi WiFi
 const char* ssid = "Yudistira";     // Ganti dengan SSID WiFi Anda
 const char* password = "siduyyyy";  // Ganti dengan password WiFi Anda
 
 // Konfigurasi Firebase
-#define FIREBASE_HOST "https://water-level-project-c8fab-default-rtdb.firebaseio.com" // Ganti dengan host Firebase Anda
-#define FIREBASE_AUTH "AIzaSyA8yxmpkgivvC5RzVxKuhAr3dpihf3nlQQ" // Tokennya
-FirebaseData firebaseData;
+#define API_KEY "AIzaSyA8yxmpkgivvC5RzVxKuhAr3dpihf3nlQQ"
+#define DATABASE_URL "https://water-level-project-c8fab-default-rtdb.firebaseio.com"
+
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
+
+// Add after FirebaseConfig config
+bool isFirebaseReady = false;
 
 // Definisi pin untuk ESP32 WEMOS
 const int PIN_POTENTIOMETER = 34; // GPIO34 (ADC1_CH6) untuk potensiometer geser B10K
@@ -16,6 +24,24 @@ const int PIN_POTENTIOMETER = 34; // GPIO34 (ADC1_CH6) untuk potensiometer geser
 // Variabel untuk perhitungan ketinggian air dan kecepatan perubahan
 float lastHeight = 0.0;     // Ketinggian sebelumnya (meter)
 unsigned long lastTime = 0; // Waktu sebelumnya (milidetik)
+
+void initializeFirebase() {
+  config.api_key = API_KEY;
+  config.database_url = DATABASE_URL;
+  config.token_status_callback = tokenStatusCallback;
+
+  Serial.println("Menginisialisasi Firebase...");
+  if (Firebase.signUp(&config, &auth, "", "")) {
+    Serial.println("Firebase: Autentikasi berhasil");
+    isFirebaseReady = true;
+  } else {
+    Serial.printf("Firebase Error: %s\n", config.signer.signupError.message.c_str());
+    isFirebaseReady = false;
+  }
+
+  Firebase.begin(&config, &auth);
+  Firebase.reconnectWiFi(true);
+}
 
 void setup() {
   Serial.begin(115200);     // Inisialisasi serial dengan baud rate 115200
@@ -32,9 +58,8 @@ void setup() {
   }
   Serial.println("\nWiFi terhubung!");
 
-  // Inisialisasi Firebase
-  Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
-  Firebase.reconnectWiFi(true);
+  // Replace Firebase initialization with new function call
+  initializeFirebase();
 }
 
 void loop() {
@@ -62,15 +87,15 @@ void loop() {
   Serial.println(" m/s");
 
   // Mengirim data ke Firebase
-  if (Firebase.setFloat(firebaseData, "/water_level/height", height)) {
+  if (Firebase.RTDB.setFloat(&fbdo, "/water_level/height", height)) {
     Serial.println("Data ketinggian dikirim ke Firebase");
   } else {
-    Serial.println("Gagal mengirim data ketinggian: " + firebaseData.errorReason());
+    Serial.println("Gagal mengirim data ketinggian: " + fbdo.errorReason());
   }
-  if (Firebase.setFloat(firebaseData, "/water_level/rate", rateOfChange)) {
+  if (Firebase.RTDB.setFloat(&fbdo, "/water_level/rate", rateOfChange)) {
     Serial.println("Data kecepatan perubahan dikirim ke Firebase");
   } else {
-    Serial.println("Gagal mengirim data kecepatan: " + firebaseData.errorReason());
+    Serial.println("Gagal mengirim data kecepatan: " + fbdo.errorReason());
   }
 
   delay(1000);  // Delay 1 detik untuk pembacaan berkala
