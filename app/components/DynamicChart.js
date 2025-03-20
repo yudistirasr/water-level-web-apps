@@ -1,6 +1,29 @@
 'use client'
 import { useEffect, useRef } from 'react';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Filler,
+  Legend
+} from 'chart.js';
 import Chart from 'chart.js/auto';
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Filler,
+  Legend
+);
 
 const DynamicChart = ({ data }) => {
   const chartRef = useRef(null);
@@ -39,10 +62,17 @@ const DynamicChart = ({ data }) => {
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          animation: {
+            duration: 750,
+            easing: 'easeInOutQuart'
+          },
           plugins: {
             legend: {
               labels: {
-                color: 'rgb(229, 231, 235)'
+                color: 'rgb(229, 231, 235)',
+                font: {
+                  family: '"Inter", sans-serif'
+                }
               }
             }
           },
