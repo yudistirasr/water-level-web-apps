@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef } from 'react';
+import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -11,9 +11,7 @@ import {
   Filler,
   Legend
 } from 'chart.js';
-import { Line } from 'react-chartjs-2';
 
-// Register Chart.js components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -25,40 +23,32 @@ ChartJS.register(
   Legend
 );
 
-const DynamicChart = ({ data }) => {
+export default function DynamicChart({ data }) {
   const options = {
     responsive: true,
-    maintainAspectRatio: false,
-    animation: {
-      duration: 750,
-      easing: 'easeInOutQuart'
-    },
     plugins: {
       legend: {
-        labels: {
-          color: 'rgb(229, 231, 235)',
-          font: {
-            family: '"Inter", sans-serif'
-          }
-        }
-      }
+        display: false,
+      },
     },
     scales: {
       y: {
         beginAtZero: true,
+        max: 3, // Set max to 3 meters
         grid: {
-          color: 'rgba(255, 255, 255, 0.1)'
+          color: 'rgba(148, 163, 184, 0.1)',
         },
         ticks: {
-          color: 'rgb(229, 231, 235)'
+          color: 'rgba(203, 213, 225, 0.8)',
+          callback: (value) => `${value}m`
         }
       },
       x: {
         grid: {
-          color: 'rgba(255, 255, 255, 0.1)'
+          display: false
         },
         ticks: {
-          color: 'rgb(229, 231, 235)'
+          color: 'rgba(203, 213, 225, 0.8)'
         }
       }
     }
@@ -68,23 +58,22 @@ const DynamicChart = ({ data }) => {
     labels: data.labels,
     datasets: [
       {
-        label: 'Ketinggian Air (m)',
-        data: data.values,
         fill: true,
-        backgroundColor: 'rgba(56, 189, 248, 0.2)',
+        data: data.values,
         borderColor: 'rgb(56, 189, 248)',
-        borderWidth: 2,
-        pointBackgroundColor: 'rgb(56, 189, 248)',
+        backgroundColor: 'rgba(56, 189, 248, 0.2)',
         tension: 0.4,
+        pointBackgroundColor: '#ffffff',
+        pointBorderColor: 'rgb(56, 189, 248)',
+        pointRadius: 4,
+        pointHoverRadius: 6,
       },
     ],
   };
 
   return (
-    <div className="relative h-full w-full">
+    <div className="w-full h-full rounded-xl backdrop-blur-sm bg-slate-900/20 p-4">
       <Line options={options} data={chartData} />
     </div>
   );
-};
-
-export default DynamicChart;
+}
