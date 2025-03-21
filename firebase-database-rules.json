@@ -1,0 +1,9 @@
+{
+  "rules": {
+    ".read": true,
+    ".write": true,
+    "water_level_history": {
+      ".indexOn": ["timestamp"]
+    }
+  }
+}
