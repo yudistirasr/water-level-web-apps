@@ -1,14 +1,21 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { ref, get } from 'firebase/database';
+import { format } from 'date-fns';
+import { database } from '../utils/firebase';
 
 export default function PengaturanContent() {
   const [activeTab, setActiveTab] = useState('general');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [smsNotifications, setSmsNotifications] = useState(false);
-  const [refreshInterval, setRefreshInterval] = useState("30"); // Added state for refresh interval
-  const [themeOption, setThemeOption] = useState("light"); // Added state for theme option
-  const [location, setLocation] = useState("Sungai Ciliwung, Jakarta"); // Added state for location
+  const [refreshInterval, setRefreshInterval] = useState("30");
+  const [themeOption, setThemeOption] = useState("light");
+  const [location, setLocation] = useState("Sungai Ciliwung, Jakarta");
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingStartTime, setRecordingStartTime] = useState(null);
+  const [recordingData, setRecordingData] = useState([]);
+  const recordingIntervalRef = useRef(null);
   const [thresholds, setThresholds] = useState({
     safe: 60,
     warning: 80,
@@ -19,6 +26,74 @@ export default function PengaturanContent() {
     email: 'admin@waterlevel.com',
     phone: '+6281234567890'
   });
+
+  // Function to start recording
+  const startRecording = () => {
+    setIsRecording(true);
+    setRecordingStartTime(new Date());
+    setRecordingData([]);
+    
+    recordingIntervalRef.current = setInterval(() => {
+      // Get current data from Firebase
+      const waterLevelRef = ref(database, 'water_level');
+      get(waterLevelRef).then((snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          const timestamp = new Date();
+          setRecordingData(prev => [...prev, {
+            timestamp,
+            height: data.height || 0,
+            rate: data.rate || 0
+          }]);
+        }
+      });
+    }, 5000); // Record every 5 seconds
+  };
+
+  // Function to stop recording and save to CSV
+  const stopRecording = () => {
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current);
+    }
+    
+    if (recordingData.length > 0) {
+      const headers = ["Timestamp", "Waktu", "Ketinggian (m)", "Laju Perubahan (m/s)"];
+      const rows = recordingData.map(entry => [
+        entry.timestamp.getTime(),
+        entry.timestamp.toLocaleString('id-ID'),
+        entry.height.toFixed(2),
+        entry.rate.toFixed(4)
+      ]);
+      
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.join(','))
+      ].join('\n');
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `water-level-recording-${format(new Date(), 'yyyy-MM-dd-HH-mm-ss')}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+    
+    setIsRecording(false);
+    setRecordingStartTime(null);
+    setRecordingData([]);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+      }
+    };
+  }, []);
 
   const handleThresholdChange = (type, value) => {
     setThresholds(prev => ({
@@ -45,7 +120,7 @@ export default function PengaturanContent() {
       {/* Tabs Navigation */}
       <div className="relative p-2 bg-gray-100 border-b border-gray-200">
         <div className="tab-container flex gap-1 bg-gray-100 p-1 rounded-lg max-w-md mx-auto">
-          {['general', 'notifications', 'thresholds', 'profile'].map((tab) => (
+          {['general', 'notifications', 'thresholds', 'profile', 'recording'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -323,6 +398,63 @@ export default function PengaturanContent() {
             <button className="mt-4 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors">
               Simpan Profil
             </button>
+          </div>
+        )}
+
+        {/* Recording Settings */}
+        {activeTab === 'recording' && (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-br from-white to-emerald-50 rounded-lg p-6 border border-emerald-100">
+              <h4 className="text-lg font-medium text-emerald-800 mb-2">Perekaman Data</h4>
+              <p className="text-sm text-gray-600 mb-4">
+                Rekam pengukuran ketinggian air setiap 5 detik dan simpan ke file CSV.
+              </p>
+              
+              {isRecording ? (
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2 text-sm text-emerald-600">
+                    <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                    <span>Sedang merekam... ({recordingData.length} pengukuran)</span>
+                  </div>
+                  
+                  <div className="text-sm text-gray-600">
+                    Mulai: {recordingStartTime?.toLocaleString('id-ID')}
+                  </div>
+                  
+                  <button
+                    onClick={stopRecording}
+                    className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
+                  >
+                    Berhenti Merekam
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={startRecording}
+                  className="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors"
+                >
+                  Mulai Merekam
+                </button>
+              )}
+            </div>
+            
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h5 className="font-medium text-sm text-gray-700 mb-2">Tentang Perekaman Data</h5>
+              <ul className="space-y-2 text-sm text-gray-600">
+                <li className="flex items-start">
+                  <span className="h-5 w-5 mr-2 text-emerald-500">•</span>
+                  Data direkam setiap 5 detik
+                </li>
+                <li className="flex items-start">
+                  <span className="h-5 w-5 mr-2 text-emerald-500">•</span>
+                  File CSV akan otomatis diunduh saat perekaman dihentikan
+                </li>
+                <li className="flex items-start">
+                  <span className="h-5 w-5 mr-2 text-emerald-500">•</span>
+                  Data yang direkam: timestamp, waktu, ketinggian air, dan laju perubahan
+                </li>
+              </ul>
+            </div>
           </div>
         )}
       </div>
